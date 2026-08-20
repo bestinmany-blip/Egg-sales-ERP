@@ -1,0 +1,6 @@
+{
+  "appId": "com.commercial.invoicingapp",
+  "appName": "Commercial Invoicing & Accounting",
+  "webDir": ".",
+  "bundledWebRuntime": false
+}

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Commercial Invoicing & Accounting</title>
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    @media print {
+      body * { visibility: hidden; }
+      #printable-area, #printable-area * { visibility: visible; }
+      #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen">
+  <div id="app" class="flex flex-col md:flex-row min-h-screen">
+    <!-- Sidebar Navigation -->
+    <aside class="w-full md:w-64 bg-slate-800 p-4 border-b md:border-r border-slate-700 no-print flex-shrink-0">
+      <h1 class="text-xl font-bold text-blue-400 mb-6 flex items-center gap-2">
+        <span>💼</span> Enterprise ERP
+      </h1>
+      <nav class="space-y-2">
+        <button onclick="switchTab('dashboard')" class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2">📊 Dashboard</button>
+        <button onclick="switchTab('invoice')" class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2">🧾 New Invoice</button>
+        <button onclick="switchTab('history')" class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2">📋 Invoices & Receipts</button>
+        <button onclick="switchTab('customers')" class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2">👥 Customers & Ledger</button>
+        <button onclick="switchTab('inventory')" class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2">📦 Inventory</button>
+        <button onclick="switchTab('accounting')" class="w-full text-left px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2">💰 Accounting Ledger</button>
+      </nav>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 p-6 overflow-y-auto">
+      
+      <!-- DASHBOARD TAB -->
+      <section id="tab-dashboard" class="tab-content">
+        <h2 class="text-2xl font-bold mb-4">Sales & Financial Overview</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+            <p class="text-xs text-slate-400">Total Billed</p>
+            <p id="dash-total-billed" class="text-2xl font-bold text-blue-400">$0.00</p>
+          </div>
+          <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+            <p class="text-xs text-slate-400">Total Collected</p>
+            <p id="dash-total-collected" class="text-2xl font-bold text-emerald-400">$0.00</p>
+          </div>
+          <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+            <p class="text-xs text-slate-400">Outstanding Receivables</p>
+            <p id="dash-total-receivables" class="text-2xl font-bold text-amber-400">$0.00</p>
+          </div>
+          <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+            <p class="text-xs text-slate-400">Inventory Items</p>
+            <p id="dash-total-inventory" class="text-2xl font-bold text-indigo-400">0</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- NEW INVOICE TAB -->
+      <section id="tab-invoice" class="tab-content hidden">
+        <h2 class="text-2xl font-bold mb-4">Create Invoice</h2>
+        <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 space-y-4 max-w-4xl">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm mb-1">Customer Name</label>
+              <input type="text" id="inv-customer-name" class="w-full bg-slate-700 p-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500">
+            </div>
+            <div>
+              <label class="block text-sm mb-1">Customer Phone (WhatsApp format: 1234567890)</label>
+              <input type="text" id="inv-customer-phone" class="w-full bg-slate-700 p-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500">
+            </div>
+          </div>
+
+          <div class="border-t border-slate-700 pt-4">
+            <h3 class="font-semibold mb-2">Line Items</h3>
+            <div id="invoice-items" class="space-y-2"></div>
+            <button onclick="addInvoiceRow()" class="mt-2 text-sm bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded">+ Add Product Line</button>
+          </div>
+
+          <div class="border-t border-slate-700 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm mb-1">Payment Received Now ($)</label>
+              <input type="number" id="inv-paid-amount" value="0" min="0" step="0.01" class="w-full bg-slate-700 p-2 rounded border border-slate-600 focus:outline-none focus:border-blue-500" oninput="calculateInvoiceTotals()">
+            </div>
+            <div class="text-right space-y-1">
+              <p class="text-slate-400">Subtotal: <span id="inv-subtotal" class="text-white font-bold">$0.00</span></p>
+              <p class="text-slate-400">Balance Due: <span id="inv-balance" class="text-amber-400 font-bold">$0.00</span></p>
+            </div>
+          </div>
+
+          <button onclick="saveAndGenerateInvoice()" class="w-full bg-emerald-600 hover:bg-emerald-700 py-3 rounded font-bold text-lg">Generate & Finalize Invoice</button>
+        </div>
+      </section>
+
+      <!-- INVOICE HISTORY TAB -->
+      <section id="tab-history" class="tab-content hidden">
+        <h2 class="text-2xl font-bold mb-4">Invoice & Receipt Records</h2>
+        <div class="overflow-x-auto bg-slate-800 rounded-lg border border-slate-700">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-700 text-slate-300">
+              <tr>
+                <th class="p-3">Doc #</th>
+                <th class="p-3">Customer</th>
+                <th class="p-3">Total</th>
+                <th class="p-3">Paid</th>
+                <th class="p-3">Balance</th>
+                <th class="p-3">Status</th>
+                <th class="p-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="invoice-history-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- CUSTOMER HISTORY TAB -->
+      <section id="tab-customers" class="tab-content hidden">
+        <h2 class="text-2xl font-bold mb-4">Customer Balances & Ledgers</h2>
+        <div id="customer-ledger-list" class="space-y-4"></div>
+      </section>
+
+      <!-- INVENTORY TAB -->
+      <section id="tab-inventory" class="tab-content hidden">
+        <h2 class="text-2xl font-bold mb-4">Inventory Management</h2>
+        <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 mb-6 max-w-xl space-y-3">
+          <h3 class="font-semibold text-lg">Add Stock Item</h3>
+          <input type="text" id="inv-item-name" placeholder="Item Name" class="w-full bg-slate-700 p-2 rounded border border-slate-600">
+          <div class="grid grid-cols-2 gap-2">
+            <input type="number" id="inv-item-price" placeholder="Unit Price ($)" class="bg-slate-700 p-2 rounded border border-slate-600">
+            <input type="number" id="inv-item-stock" placeholder="Initial Stock Quantity" class="bg-slate-700 p-2 rounded border border-slate-600">
+          </div>
+          <button onclick="addInventoryItem()" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold w-full">Save Stock</button>
+        </div>
+        <div class="overflow-x-auto bg-slate-800 rounded-lg border border-slate-700">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-700 text-slate-300">
+              <tr>
+                <th class="p-3">Item Name</th>
+                <th class="p-3">Unit Price</th>
+                <th class="p-3">Available Stock</th>
+              </tr>
+            </thead>
+            <tbody id="inventory-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ACCOUNTING INTEGRATION FOUNDATION -->
+      <section id="tab-accounting" class="tab-content hidden">
+        <h2 class="text-2xl font-bold mb-4">Accounting Ledger (Double-Entry Foundation)</h2>
+        <div class="overflow-x-auto bg-slate-800 rounded-lg border border-slate-700">
+          <table class="w-full text-left text-sm">
+            <thead class="bg-slate-700 text-slate-300">
+              <tr>
+                <th class="p-3">Date</th>
+                <th class="p-3">Account Header</th>
+                <th class="p-3">Debit ($)</th>
+                <th class="p-3">Credit ($)</th>
+                <th class="p-3">Reference</th>
+              </tr>
+            </thead>
+            <tbody id="accounting-ledger-table"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- PRINT / DISPLAY PREVIEW MODAL -->
+      <div id="print-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+        <div class="bg-slate-800 p-6 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-slate-700">
+          <div id="printable-area" class="bg-white text-slate-900 p-6 rounded shadow">
+            <!-- Rendered Document Contents -->
+          </div>
+          <div class="mt-4 flex flex-wrap gap-2 no-print">
+            <button onclick="window.print()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">🖨️ Print Document</button>
+            <button onclick="downloadPDF()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded">📥 Save / Download PDF</button>
+            <button onclick="shareWhatsApp()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">📱 Share via WhatsApp</button>
+            <button onclick="closePrintModal()" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded ml-auto">Close</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    // State Persistence
+    let state = {
+      invoices: JSON.parse(localStorage.getItem('app_invoices') || '[]'),
+      inventory: JSON.parse(localStorage.getItem('app_inventory') || '[{"id":1, "name":"Standard Product", "price":50, "stock":100}]'),
+      accountingLedger: JSON.parse(localStorage.getItem('app_ledger') || '[]'),
+      nextInvoiceSeq: parseInt(localStorage.getItem('app_seq') || '1001')
+    };
+
+    let activeModalDoc = null;
+
+    function saveState() {
+      localStorage.setItem('app_invoices', JSON.stringify(state.invoices));
+      localStorage.setItem('app_inventory', JSON.stringify(state.inventory));
+      localStorage.setItem('app_ledger', JSON.stringify(state.accountingLedger));
+      localStorage.setItem('app_seq', state.nextInvoiceSeq.toString());
+      renderAll();
+    }
+
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+    }
+
+    // Inventory Controls
+    function addInventoryItem() {
+      const name = document.getElementById('inv-item-name').value;
+      const price = parseFloat(document.getElementById('inv-item-price').value) || 0;
+      const stock = parseInt(document.getElementById('inv-item-stock').value) || 0;
+      if (!name) return alert('Enter product name');
+      
+      state.inventory.push({ id: Date.now(), name, price, stock });
+      document.getElementById('inv-item-name').value = '';
+      document.getElementById('inv-item-price').value = '';
+      document.getElementById('inv-item-stock').value = '';
+      saveState();
+    }
+
+    // Dynamic Invoice Generation
+    function addInvoiceRow() {
+      const container = document.getElementById('invoice-items');
+      const rowId = Date.now();
+      let options = state.inventory.map(i => `<option value="${i.id}">${i.name} ($${i.price}) - Stock: ${i.stock}</option>`).join('');
+      
+      const div = document.createElement('div');
+      div.className = "flex gap-2 items-center invoice-row";
+      div.innerHTML = `
+        <select class="bg-slate-700 p-2 rounded flex-1 item-select" onchange="calculateInvoiceTotals()">
+          <option value="">Select Inventory Item</option>
+          ${options}
+        </select>
+        <input type="number" placeholder="Qty" value="1" min="1" class="bg-slate-700 p-2 rounded w-20 item-qty" oninput="calculateInvoiceTotals()">
+        <button onclick="this.parentElement.remove(); calculateInvoiceTotals();" class="text-red-400 font-bold px-2">✕</button>
+      `;
+      container.appendChild(div);
+      calculateInvoiceTotals();
+    }
+
+    function calculateInvoiceTotals() {
+      let total = 0;
+      document.querySelectorAll('.invoice-row').forEach(row => {
+        const itemId = row.querySelector('.item-select').value;
+        const qty = parseInt(row.querySelector('.item-qty').value) || 0;
+        const item = state.inventory.find(i => i.id == itemId);
+        if (item) total += item.price * qty;
+      });
+
+      const paid = parseFloat(document.getElementById('inv-paid-amount').value) || 0;
+      const balance = Math.max(0, total - paid);
+
+      document.getElementById('inv-subtotal').innerText = `$${total.toFixed(2)}`;
+      document.getElementById('inv-balance').innerText = `$${balance.toFixed(2)}`;
+      return { total, paid, balance };
+    }
+
+    function saveAndGenerateInvoice() {
+      const customerName = document.getElementById('inv-customer-name').value.trim();
+      const customerPhone = document.getElementById('inv-customer-phone').value.trim();
+      if (!customerName) return alert('Customer Name is required.');
+
+      const rows = document.querySelectorAll('.invoice-row');
+      const items = [];
+      let totalAmount = 0;
+
+      for (let row of rows) {
+        const itemId = row.querySelector('.item-select').value;
+        const qty = parseInt(row.querySelector('.item-qty').value) || 0;
+        const item = state.inventory.find(i => i.id == itemId);
+        if (item && qty > 0) {
+          if (item.stock < qty) return alert(`Not enough stock for ${item.name}`);
+          item.stock -= qty; // Deduct inventory
+          items.push({ itemId: item.id, name: item.name, price: item.price, qty, lineTotal: item.price * qty });
+          totalAmount += item.price * qty;
+        }
+      }
+
+      if (items.length === 0) return alert('Add at least one valid inventory item.');
+
+      const paidAmount = parseFloat(document.getElementById('inv-paid-amount').value) || 0;
+      const balance = Math.max(0, totalAmount - paidAmount);
+      const invoiceNum = `INV-${state.nextInvoiceSeq++}`;
+
+      const invoiceRecord = {
+        number: invoiceNum,
+        date: new Date().toISOString().split('T')[0],
+        customerName,
+        customerPhone,
+        items,
+        totalAmount,
+        paidAmount,
+        balance,
+        status: balance === 0 ? 'PAID' : (paidAmount > 0 ? 'PARTIAL' : 'UNPAID')
+      };
+
+      state.invoices.push(invoiceRecord);
+
+      // Accounting Ledger Updates
+      state.accountingLedger.push(
+        { date: invoiceRecord.date, account: 'Accounts Receivable', debit: totalAmount, credit: 0, ref: invoiceNum },
+        { date: invoiceRecord.date, account: 'Sales Revenue', debit: 0, credit: totalAmount, ref: invoiceNum }
+      );
+
+      if (paidAmount > 0) {
+        const receiptNum = `REC-${invoiceNum}`;
+        state.accountingLedger.push(
+          { date: invoiceRecord.date, account: 'Cash/Bank', debit: paidAmount, credit: 0, ref: receiptNum },
+          { date: invoiceRecord.date, account: 'Accounts Receivable', debit: 0, credit: paidAmount, ref: receiptNum }
+        );
+      }
+
+      saveState();
+      
+      // Reset input fields
+      document.getElementById('inv-customer-name').value = '';
+      document.getElementById('inv-customer-phone').value = '';
+      document.getElementById('invoice-items').innerHTML = '';
+      document.getElementById('inv-paid-amount').value = '0';
+
+      openPrintModal(invoiceRecord);
+    }
+
+    function recordPayment(invoiceNum) {
+      const inv = state.invoices.find(i => i.number === invoiceNum);
+      if (!inv) return;
+      
+      const payment = parseFloat(prompt(`Current Balance: $${inv.balance.toFixed(2)}. Enter payment amount:`) || '0');
+      if (payment > 0) {
+        const actualPayment = Math.min(payment, inv.balance);
+        inv.paidAmount += actualPayment;
+        inv.balance -= actualPayment;
+        inv.status = inv.balance === 0 ? 'PAID' : 'PARTIAL';
+
+        const receiptNum = `REC-${inv.number}-${Date.now().toString().slice(-4)}`;
+        state.accountingLedger.push(
+          { date: new Date().toISOString().split('T')[0], account: 'Cash/Bank', debit: actualPayment, credit: 0, ref: receiptNum },
+          { date: new Date().toISOString().split('T')[0], account: 'Accounts Receivable', debit: 0, credit: actualPayment, ref: receiptNum }
+        );
+
+        saveState();
+      }
+    }
+
+    function openPrintModal(invoice) {
+      activeModalDoc = invoice;
+      const modal = document.getElementById('print-modal');
+      const container = document.getElementById('printable-area');
+
+      container.innerHTML = `
+        <div class="border-b pb-4 mb-4">
+          <h2 class="text-3xl font-bold tracking-tight text-slate-800">COMMERCIAL INVOICE</h2>
+          <p class="text-sm text-slate-500">Invoice Number: <strong>${invoice.number}</strong></p>
+          <p class="text-sm text-slate-500">Date: ${invoice.date}</p>
+        </div>
+        <div class="mb-6">
+          <h3 class="text-xs uppercase text-slate-400 font-bold">Billed To</h3>
+          <p class="text-lg font-bold text-slate-800">${invoice.customerName}</p>
+          <p class="text-sm text-slate-600">${invoice.customerPhone || 'N/A'}</p>
+        </div>
+        <table class="w-full text-left text-sm mb-6 border-collapse">
+          <thead>
+            <tr class="border-b text-slate-500">
+              <th class="py-2">Item</th>
+              <th class="py-2">Price</th>
+              <th class="py-2">Qty</th>
+              <th class="py-2 text-right">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${invoice.items.map(i => `
+              <tr class="border-b">
+                <td class="py-2">${i.name}</td>
+                <td class="py-2">$${i.price.toFixed(2)}</td>
+                <td class="py-2">${i.qty}</td>
+                <td class="py-2 text-right">$${i.lineTotal.toFixed(2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="flex justify-end text-right">
+          <div class="space-y-1">
+            <p class="text-slate-600">Total Billed: <strong class="text-slate-800">$${invoice.totalAmount.toFixed(2)}</strong></p>
+            <p class="text-slate-600">Amount Paid: <strong class="text-emerald-600">$${invoice.paidAmount.toFixed(2)}</strong></p>
+            <p class="text-slate-600">Balance Due: <strong class="text-amber-600">$${invoice.balance.toFixed(2)}</strong></p>
+          </div>
+        </div>
+      `;
+
+      modal.classList.remove('hidden');
+    }
+
+    function closePrintModal() {
+      document.getElementById('print-modal').classList.add('hidden');
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      doc.text(`Invoice: ${activeModalDoc.number}`, 10, 10);
+      doc.text(`Customer: ${activeModalDoc.customerName}`, 10, 20);
+      doc.text(`Total Amount: $${activeModalDoc.totalAmount.toFixed(2)}`, 10, 30);
+      doc.text(`Paid: $${activeModalDoc.paidAmount.toFixed(2)}`, 10, 40);
+      doc.text(`Balance: $${activeModalDoc.balance.toFixed(2)}`, 10, 50);
+      doc.save(`${activeModalDoc.number}.pdf`);
+    }
+
+    function shareWhatsApp() {
+      if (!activeModalDoc) return;
+      const msg = `Hello ${activeModalDoc.customerName}, here is your summary for ${activeModalDoc.number}:
+Total: $${activeModalDoc.totalAmount.toFixed(2)}
+Paid: $${activeModalDoc.paidAmount.toFixed(2)}
+Balance Due: $${activeModalDoc.balance.toFixed(2)}`;
+      const url = `https://wa.me/${activeModalDoc.customerPhone}?text=${encodeURIComponent(msg)}`;
+      window.open(url, '_blank');
+    }
+
+    // Dynamic View Renderers
+    function renderAll() {
+      // Dashboard
+      const totalBilled = state.invoices.reduce((acc, i) => acc + i.totalAmount, 0);
+      const totalCollected = state.invoices.reduce((acc, i) => acc + i.paidAmount, 0);
+      const totalReceivables = state.invoices.reduce((acc, i) => acc + i.balance, 0);
+
+      document.getElementById('dash-total-billed').innerText = `$${totalBilled.toFixed(2)}`;
+      document.getElementById('dash-total-collected').innerText = `$${totalCollected.toFixed(2)}`;
+      document.getElementById('dash-total-receivables').innerText = `$${totalReceivables.toFixed(2)}`;
+      document.getElementById('dash-total-inventory').innerText = state.inventory.length;
+
+      // History Table
+      const historyTbody = document.getElementById('invoice-history-table');
+      historyTbody.innerHTML = state.invoices.map(i => `
+        <tr class="border-t border-slate-700">
+          <td class="p-3 font-semibold">${i.number}</td>
+          <td class="p-3">${i.customerName}</td>
+          <td class="p-3">$${i.totalAmount.toFixed(2)}</td>
+          <td class="p-3 text-emerald-400">$${i.paidAmount.toFixed(2)}</td>
+          <td class="p-3 text-amber-400">$${i.balance.toFixed(2)}</td>
+          <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-bold ${i.status === 'PAID' ? 'bg-emerald-900 text-emerald-300' : 'bg-amber-900 text-amber-300'}">${i.status}</span></td>
+          <td class="p-3 flex gap-2">
+            <button onclick='openPrintModal(${JSON.stringify(i)})' class="bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded text-xs">View/Print</button>
+            ${i.balance > 0 ? `<button onclick="recordPayment('${i.number}')" class="bg-blue-600 hover:bg-blue-500 px-2 py-1 rounded text-xs">Add Payment</button>` : ''}
+          </td>
+        </tr>
+      `).join('');
+
+      // Inventory Table
+      const invTbody = document.getElementById('inventory-table');
+      invTbody.innerHTML = state.inventory.map(i => `
+        <tr class="border-t border-slate-700">
+          <td class="p-3">${i.name}</td>
+          <td class="p-3">$${i.price.toFixed(2)}</td>
+          <td class="p-3 font-bold ${i.stock < 10 ? 'text-red-400' : 'text-slate-200'}">${i.stock}</td>
+        </tr>
+      `).join('');
+
+      // Customers Ledger
+      const customers = {};
+      state.invoices.forEach(i => {
+        if (!customers[i.customerName]) customers[i.customerName] = { total: 0, paid: 0, balance: 0, count: 0 };
+        customers[i.customerName].total += i.totalAmount;
+        customers[i.customerName].paid += i.paidAmount;
+        customers[i.customerName].balance += i.balance;
+        customers[i.customerName].count += 1;
+      });
+
+      const customerContainer = document.getElementById('customer-ledger-list');
+      customerContainer.innerHTML = Object.keys(customers).map(name => `
+        <div class="bg-slate-800 p-4 rounded-lg border border-slate-700 flex justify-between items-center">
+          <div>
+            <h3 class="text-lg font-bold">${name}</h3>
+            <p class="text-sm text-slate-400">${customers[name].count} Invoices Issued</p>
+          </div>
+          <div class="text-right">
+            <p class="text-xs text-slate-400">Total Credit Balance Due</p>
+            <p class="text-xl font-bold ${customers[name].balance > 0 ? 'text-amber-400' : 'text-emerald-400'}">$${customers[name].balance.toFixed(2)}</p>
+          </div>
+        </div>
+      `).join('');
+
+      // Accounting Ledger Table
+      const ledgerTbody = document.getElementById('accounting-ledger-table');
+      ledgerTbody.innerHTML = state.accountingLedger.map(l => `
+        <tr class="border-t border-slate-700">
+          <td class="p-3">${l.date}</td>
+          <td class="p-3">${l.account}</td>
+          <td class="p-3 text-emerald-400">${l.debit ? '$' + l.debit.toFixed(2) : '-'}</td>
+          <td class="p-3 text-blue-400">${l.credit ? '$' + l.credit.toFixed(2) : '-'}</td>
+          <td class="p-3 text-slate-400">${l.ref}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Initial Bootstrap
+    addInvoiceRow();
+    renderAll();
+  </script>
+</body>
+</html>
