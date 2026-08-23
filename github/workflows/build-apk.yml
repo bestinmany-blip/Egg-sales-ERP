@@ -1,32 +1,30 @@
-name: Build Android APK
+name: Build & Publish Debug APK
 
 on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
+ push:
+  branches:
+   - master
+   
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Source Code
-      uses: actions/checkout@v4
-
-    - name: Set up Java Environment
-      uses: actions/setup-java@v4
+    - uses: actions/checkout@v1
+    - name: set up JDK 1.8
+      uses: actions/setup-java@v1
       with:
-        distribution: 'zulu'
-        java-version: '17'
-
-    - name: Grant Execute Permission for Gradle
-      run: chmod +x gradlew
-
-    - name: Compile and Build APK
+        java-version: 1.8
+    - name: Make Gradle executable
+      run: chmod +x ./gradlew
+    - name: Build with Gradle
+      run: ./gradlew build
+    - name: Build Debug APK
       run: ./gradlew assembleDebug
-
-    - name: Upload Finished APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: my-app-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+    - name: Generate version.txt for Hub release
+      run: ./gradlew generateVersionTxt
+    - name: Releasing using Hub
+      uses: valley-fordham/action-release-debugapk@master
+      env:
+       GITHUB_TOKEN: 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
+       APP_FOLDER: app
+       RELEASE_TITLE: Egg Depot ERP
